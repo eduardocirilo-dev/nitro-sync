@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: nitro-sync
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /saude
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: ORIGENS
+        value: https://eduardocirilo-dev.github.io

@@ -1,0 +1,16 @@
+{
+  "name": "nitro-sync",
+  "version": "1.0.0",
+  "description": "Guarda o progresso de treino pré-flop (Spin & Go Nitro) para ser lido em vários aparelhos",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mongodb": "^6.8.0"
+  }
+}
