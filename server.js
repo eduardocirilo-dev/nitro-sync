@@ -76,8 +76,32 @@ const devOk = s => typeof s === 'string' && /^[a-z0-9-]{6,64}$/i.test(s);
 app.get('/saude', async (_req, res) => {
   let responde = false;
   try { responde = await store.saude(); } catch (e) { responde = false; }
-  res.json({ ok: true, guarda: store.tipo, a_responder: responde, mongo: store.tipo === 'mongo' });
+  res.json({ ok: true, guarda: store.tipo, a_responder: responde, mongo: store.tipo === 'mongo',
+             pista: pistaMongo });
 });
+
+app.get('/diagnostico', (_req, res) => {
+  res.json({ guarda: store.tipo, pista: pistaMongo || 'sem erro' });
+});
+
+// Traduzir o erro do Mongo para uma acção concreta (o log do Render fica legível para ele)
+let pistaMongo = '';
+function explicarErroMongo(msg) {
+  const m = String(msg || '');
+  if (/tlsv1 alert internal error|SSL alert number 80|ssl3_read_bytes/i.test(m)) {
+    return 'A ligação TLS foi recusada pelo MongoDB. Motivo quase sempre: o endereço do Render não está autorizado. Abrir MongoDB Atlas → SECURITY → Database & Network Access → IP Access List → ADD IP ADDRESS → ALLOW ACCESS FROM ANYWHERE (0.0.0.0/0).';
+  }
+  if (/authentication failed|bad auth/i.test(m)) {
+    return 'Password ou utilizador errados no MONGODB_URI (Database Access → confirma o utilizador e a password).';
+  }
+  if (/ENOTFOUND|querySrv/i.test(m)) {
+    return 'O endereço do MONGODB_URI não existe ou está mal copiado (falta pedaços?). Copiar outra vez em Connect → Drivers.';
+  }
+  if (/timed out|Server selection/i.test(m)) {
+    return 'Não cheguei ao servidor do MongoDB a tempo. Normalmente também é o IP Access List.';
+  }
+  return 'Erro inesperado: ' + m.slice(0, 200);
+}
 
 app.get('/estado/:chave', async (req, res) => {
   if (!chaveOk(req.params.chave)) return res.status(400).json({ erro: 'chave invalida' });
@@ -110,7 +134,9 @@ app.get('/', (_req, res) => res.type('text/plain').send('nitro-sync a funcionar'
       store = await criaMongo(URI);
       console.log('ligado ao MongoDB');
     } catch (e) {
-      console.error('MongoDB falhou (' + e.message + ') — a usar memória');
+      pistaMongo = explicarErroMongo(e.message);
+      console.error('MongoDB falhou: ' + e.message);
+      console.error('>>> O QUE FAZER: ' + pistaMongo);
       store = criaMemoria();
     }
   } else {
