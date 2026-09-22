@@ -77,11 +77,11 @@ app.get('/saude', async (_req, res) => {
   let responde = false;
   try { responde = await store.saude(); } catch (e) { responde = false; }
   res.json({ ok: true, guarda: store.tipo, a_responder: responde, mongo: store.tipo === 'mongo',
-             pista: pistaMongo });
+             tentativas: tentativas, pista: pistaMongo });
 });
 
 app.get('/diagnostico', (_req, res) => {
-  res.json({ guarda: store.tipo, pista: pistaMongo || 'sem erro' });
+  res.json({ guarda: store.tipo, tentativas: tentativas, pista: pistaMongo || 'sem erro' });
 });
 
 // Traduzir o erro do Mongo para uma acção concreta (o log do Render fica legível para ele)
@@ -128,16 +128,29 @@ app.put('/estado/:chave/:dev', async (req, res) => {
 
 app.get('/', (_req, res) => res.type('text/plain').send('nitro-sync a funcionar'));
 
+let tentativas = 0;
+async function tentaMongo() {
+  if (!URI) return false;
+  tentativas++;
+  try {
+    store = await criaMongo(URI);
+    pistaMongo = '';
+    console.log('ligado ao MongoDB (tentativa ' + tentativas + ')');
+    return true;
+  } catch (e) {
+    pistaMongo = explicarErroMongo(e.message);
+    console.error('MongoDB falhou (tentativa ' + tentativas + '): ' + e.message);
+    console.error('>>> O QUE FAZER: ' + pistaMongo);
+    return false;
+  }
+}
 (async () => {
   if (URI) {
-    try {
-      store = await criaMongo(URI);
-      console.log('ligado ao MongoDB');
-    } catch (e) {
-      pistaMongo = explicarErroMongo(e.message);
-      console.error('MongoDB falhou: ' + e.message);
-      console.error('>>> O QUE FAZER: ' + pistaMongo);
+    const ok = await tentaMongo();
+    if (!ok) {
       store = criaMemoria();
+      // continua a tentar sozinho: quando ele arranjar o Atlas, liga-se sem reiniciar nada
+      setInterval(() => { if (store.tipo === 'memoria') tentaMongo(); }, 60000);
     }
   } else {
     console.log('sem MONGODB_URI — modo memória');
